@@ -43,28 +43,23 @@ class TestRepository(unittest.TestCase):
             }
         }
 
-    # Проверка чтения локального репозитория
     def test_local_repository(self):
         data = get_local_data(str(self.repo))
         self.assertIn("versions", data)
 
-    # Проверка получения прямых зависимостей
     def test_get_dependencies(self):
         dependencies = get_dependencies(self.data, "4.18.2")
         self.assertEqual(len(dependencies), 3)
         self.assertIn("accepts", dependencies)
 
-    # Проверка выбора другой версии
     def test_another_version(self):
         dependencies = get_dependencies(self.data, "5.0.0")
         self.assertEqual(len(dependencies), 2)
 
-    # Проверка отсутствующей версии
     def test_missing_version(self):
         with self.assertRaises(ValueError):
             get_dependencies(self.data, "9.9.9")
 
-    # Проверка отсутствующего файла
     def test_missing_file(self):
         with self.assertRaises(ValueError):
             get_local_data("missing.json")
