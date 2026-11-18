@@ -1,0 +1,26 @@
+python3 main.py --package requests --repo test_repo.txt --repo-mode local --version 1.0 --filter urllib # команда запуска 
+
+-h, --help            show this help message and exit
+  --package PACKAGE     Имя анализируемого пакета
+  --repo REPO           URL или путь к тестовому репозиторию
+  --repo-mode {local,remote}
+                        Режим репозитория: local или remote
+  --version VERSION     Версия анализируемого пакета
+  --output OUTPUT       Имя выходного файла
+  --ascii               Вывод зависимостей в виде ASCII-дерева
+  --filter FILTER       Подстрока для фильтрации пакетов
+
+# команды
+ls	                      Посмотреть файлы в папке
+pwd	Узнать                текущую папку
+touch test_repo.txt       Создать тестовый репозиторий
+python3 --version	      Проверить версию Python
+python3 main.py --help	  Посмотреть все параметры программы
+
+python3 main.py --package requests --repo test_repo.txt --repo-mode local --version 2.31.0 --output graph.png --ascii --filter urllib # запуск
+python3 main.py --package requests --repo test_repo.txt --repo-mode local --version 1.0 # путь к репозиторию
+python3 main.py --package requests --repo https://example.com/repo --repo-mode remote --version 1.0 # удаленный репозиторий 
+python3 main.py --package requests --repo test_repo.txt --repo-mode local --version 2.5.1 # версия пакета
+python3 main.py --package requests --repo test_repo.txt --repo-mode local --version 1.0 --output my_graph.png # имя файла изображения
+python3 main.py --package requests --repo test_repo.txt --repo-mode local --version 1.0 --ascii # вывод ascii дерева
+python3 main.py --package requests --repo test_repo.txt --repo-mode local --version 1.0 --filter urllib # фильтрация пакетов
