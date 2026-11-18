@@ -64,12 +64,10 @@ class TestRepository(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_local_data("missing.json")
 
-    # Проверка неправильной структуры JSON
     def test_invalid_structure(self):
         with self.assertRaises(ValueError):
             get_dependencies({}, "4.18.2")
 
-    # Проверка пустого списка зависимостей
     def test_empty_dependencies(self):
         data = {
             "versions": {
@@ -81,7 +79,6 @@ class TestRepository(unittest.TestCase):
 
         self.assertEqual(get_dependencies(data, "1.0.0"), {})
 
-    # Проверка удаленного репозитория
     @patch("main.urllib.request.urlopen")
     def test_remote_repository(self, mock_urlopen):
         mock_urlopen.return_value = BytesIO(
@@ -95,7 +92,6 @@ class TestRepository(unittest.TestCase):
 
         self.assertIn("versions", result)
 
-    # Проверка ошибки подключения
     @patch("main.urllib.request.urlopen")
     def test_connection_error(self, mock_urlopen):
         mock_urlopen.side_effect = URLError("Connection failed")
@@ -106,7 +102,6 @@ class TestRepository(unittest.TestCase):
                 "express"
             )
 
-    # Проверка отсутствующего пакета
     @patch("main.urllib.request.urlopen")
     def test_package_not_found(self, mock_urlopen):
         mock_urlopen.side_effect = HTTPError(
