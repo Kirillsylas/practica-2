@@ -1,121 +1,152 @@
+
 import argparse
+import json
 import re
+import urllib.request
+import urllib.error
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 
 # Проверка имени пакета
 def check_package(value):
     if not re.fullmatch(r"(@[a-z0-9._-]+/)?[a-z0-9._-]+", value):
-        raise argparse.ArgumentTypeError(
-            "Некорректное имя пакета"
-        )
+        raise argparse.ArgumentTypeError("Некорректное имя пакета")
     return value
 
 
-# Проверка URL или пути к репозиторию
+# Проверка репозитория
 def check_repo(value):
+    if not value.strip():
+        raise argparse.ArgumentTypeError("Репозиторий не может быть пустым")
     return value
 
 
-# Проверка версии пакета
+# Проверка версии
 def check_version(value):
     if not re.fullmatch(r"\d+\.\d+\.\d+", value):
-        raise argparse.ArgumentTypeError(
-            "Версия должна иметь формат X.Y.Z, например 4.18.2"
-        )
+        raise argparse.ArgumentTypeError("Версия должна иметь формат X.Y.Z")
     return value
 
 
-# Проверка имени выходного файла
+# Проверка выходного файла
 def check_output(value):
     if Path(value).suffix.lower() not in (".png", ".svg"):
-        raise argparse.ArgumentTypeError(
-            "Файл должен иметь расширение .png или .svg"
-        )
-    if Path(value).name != value or value in (".", ".."):
-        raise argparse.ArgumentTypeError(
-            "Укажите имя файла без пути к папке"
-        )
+        raise argparse.ArgumentTypeError("Разрешены файлы PNG и SVG")
+    if Path(value).name != value:
+        raise argparse.ArgumentTypeError("Укажите только имя файла")
     return value
 
 
-# Проверка параметров программы
-def validate_args(args):
-    if args.repo_mode == "remote":
-        url = urlparse(args.repo)
-        if url.scheme not in ("http", "https") or not url.netloc:
-            raise ValueError(
-                "Для remote необходимо указать корректный URL"
-            )
-
-    if args.repo_mode == "local":
-        if not Path(args.repo).exists():
-            raise ValueError(
-                f"Локальный репозиторий не найден: {args.repo}"
-            )
-
-    if args.filter is not None and not args.filter.strip():
-        raise ValueError("Фильтр не может быть пустой строкой")
+# Проверка фильтра
+def check_filter(value):
+    if not value.strip():
+        raise argparse.ArgumentTypeError("Фильтр не может быть пустым")
+    return value
 
 
-# Создание параметров командной строки
+# Получение JSON из удаленного репозитория
+def get_remote_data(repo, package):
+    url = repo.rstrip("/") + "/" + quote(package, safe="@")
+
+    try:
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Dependency-Visualizer"}
+        )
+
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            raise ValueError("Пакет не найден в репозитории")
+        raise ValueError(f"Ошибка HTTP: {error.code}")
+
+    except urllib.error.URLError:
+        raise ValueError("Не удалось подключиться к репозиторию")
+
+    except json.JSONDecodeError:
+        raise ValueError("Репозиторий вернул некорректный JSON")
+
+
+# Получение JSON из локального репозитория
+def get_local_data(repo):
+    try:
+        with open(repo, "r", encoding="utf-8") as file:
+            return json.load(file)
+
+    except FileNotFoundError:
+        raise ValueError("Файл локального репозитория не найден")
+
+    except json.JSONDecodeError:
+        raise ValueError("Локальный файл содержит некорректный JSON")
+
+
+# Извлечение прямых зависимостей
+def get_dependencies(data, version):
+    if not isinstance(data, dict):
+        raise ValueError("Некорректная структура данных репозитория")
+
+    versions = data.get("versions")
+
+    if not isinstance(versions, dict):
+        raise ValueError("В репозитории отсутствует список версий")
+
+    if version not in versions:
+        raise ValueError(f"Версия {version} не найдена")
+
+    package_data = versions[version]
+
+    if not isinstance(package_data, dict):
+        raise ValueError("Некорректные данные выбранной версии")
+
+    dependencies = package_data.get("dependencies", {})
+
+    if not isinstance(dependencies, dict):
+        raise ValueError("Некорректный список зависимостей")
+
+    for name, dep_version in dependencies.items():
+        if not isinstance(name, str) or not isinstance(dep_version, str):
+            raise ValueError("Некорректная информация о зависимости")
+
+    return dependencies
+
+
+# Настройка аргументов командной строки
 def create_parser():
     parser = argparse.ArgumentParser(
-        description="Инструмент визуализации графа зависимостей пакетов"
+        description="Инструмент визуализации графа зависимостей npm"
     )
 
-    parser.add_argument(
-        "--package",
-        required=True,
-        type=check_package,
-        help="Имя анализируемого пакета"
-    )
-
-    parser.add_argument(
-        "--repo",
-        required=True,
-        type=check_repo,
-        help="URL репозитория или путь к тестовому репозиторию"
-    )
-
+    parser.add_argument("--package", required=True, type=check_package)
+    parser.add_argument("--repo", required=True, type=check_repo)
     parser.add_argument(
         "--repo-mode",
         required=True,
-        choices=["remote", "local"],
-        help="Режим работы с репозиторием"
+        choices=["remote", "local"]
     )
-
-    parser.add_argument(
-        "--version",
-        required=True,
-        type=check_version,
-        help="Версия анализируемого пакета"
-    )
-
-    parser.add_argument(
-        "--output",
-        default="graph.png",
-        type=check_output,
-        help="Имя файла изображения графа"
-    )
-
-    parser.add_argument(
-        "--ascii",
-        action="store_true",
-        help="Включить вывод зависимостей в виде ASCII-дерева"
-    )
-
-    parser.add_argument(
-        "--filter",
-        default=None,
-        help="Подстрока для фильтрации пакетов"
-    )
+    parser.add_argument("--version", required=True, type=check_version)
+    parser.add_argument("--output", default="graph.png", type=check_output)
+    parser.add_argument("--ascii", action="store_true")
+    parser.add_argument("--filter", default=None, type=check_filter)
 
     return parser
 
 
-# Главная функция программы
+# Проверка параметров
+def validate_args(args):
+    if args.repo_mode == "remote":
+        url = urlparse(args.repo)
+        if url.scheme not in ("http", "https") or not url.netloc:
+            raise ValueError("Укажите корректный URL репозитория")
+
+    if args.repo_mode == "local":
+        if not Path(args.repo).is_file():
+            raise ValueError("Локальный файл репозитория не найден")
+
+
+# Основная функция
 def main():
     parser = create_parser()
 
@@ -125,7 +156,6 @@ def main():
 
         print("\nПараметры программы:")
         print("-" * 40)
-
         print(f"Имя пакета: {args.package}")
         print(f"Репозиторий: {args.repo}")
         print(f"Режим репозитория: {args.repo_mode}")
@@ -133,9 +163,31 @@ def main():
         print(f"Имя файла изображения: {args.output}")
         print(f"ASCII-дерево: {'Да' if args.ascii else 'Нет'}")
         print(f"Фильтр пакетов: {args.filter or 'Не задан'}")
+        print("-" * 40)
+
+        print("\nПолучение зависимостей...")
+
+        if args.repo_mode == "remote":
+            data = get_remote_data(args.repo, args.package)
+        else:
+            data = get_local_data(args.repo)
+
+        dependencies = get_dependencies(data, args.version)
+
+        print(f"\nПрямые зависимости пакета {args.package}:")
+        print("-" * 40)
+
+        if dependencies:
+            for number, (name, version) in enumerate(
+                sorted(dependencies.items()), 1
+            ):
+                print(f"{number}. {name} — {version}")
+        else:
+            print("У пакета нет прямых зависимостей.")
 
         print("-" * 40)
-        print("Этап 1 успешно выполнен.")
+        print(f"Всего зависимостей: {len(dependencies)}")
+        print("\nПолучение данных завершено!")
 
     except ValueError as error:
         parser.error(str(error))
