@@ -118,15 +118,58 @@ def validate_args(args):
     if args.repo_mode == "remote":
         url = urlparse(args.repo)
         if url.scheme not in ("http", "https") or not url.netloc:
+            print("Ошибка: Укажите корректный URL репозитория")
             return False
 
     if args.repo_mode == "local":
         if not Path(args.repo).is_file():
+            print("Ошибка: Локальный файл репозитория не найден")
             return False
 
     return True
     
 def main():
     parser = create_parser()
+    args = parser.parse_args()
+
+    if not validate_args(args):
+        return
+
+    print("\nПараметры программы:")
+    print("-" * 40)
+    print(f"Имя пакета: {args.package}")
+    print(f"Репозиторий: {args.repo}")
+    print(f"Режим репозитория: {args.repo_mode}")
+    print(f"Версия пакета: {args.version}")
+    print(f"Имя файла изображения: {args.output}")
+    print(f"ASCII-дерево: {'Да' if args.ascii else 'Нет'}")
+    print(f"Фильтр пакетов: {args.filter or 'Не задан'}")
+    print("-" * 40)
+
+    print("\nПолучение зависимостей...")
+
+    if args.repo_mode == "remote":
+        data = get_remote_data(args.repo, args.package)
+    else:
+        data = get_local_data(args.repo)
+
+    dependencies = get_dependencies(data, args.version)
+
+    print(f"\nПрямые зависимости пакета {args.package}:")
+    print("-" * 40)
+
+    if dependencies:
+        for number, (name, version) in enumerate(
+            sorted(dependencies.items()), 1
+        ):
+            print(f"{number}. {name} — {version}")
+    else:
+        print("У пакета нет прямых зависимостей.")
+
+    print("-" * 40)
+    print(f"Всего зависимостей: {len(dependencies)}")
+    print("\nПолучение данных завершено!")
+
+
 if __name__ == "__main__":
     main()
